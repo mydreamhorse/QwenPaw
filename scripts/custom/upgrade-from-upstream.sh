@@ -6,11 +6,9 @@ UPSTREAM_BRANCH="${UPSTREAM_BRANCH:-main}"
 FORK_REMOTE="${FORK_REMOTE:-origin}"
 SYNC_BRANCH="${SYNC_BRANCH:-main}"
 CUSTOM_BRANCH="${CUSTOM_BRANCH:-develop}"
-UPGRADE_BRANCH=""
 FETCH=1
 VERIFY=1
 PUSH_MAIN=0
-APPLY_TO_DEVELOP=0
 
 usage() {
   cat <<EOF
@@ -23,16 +21,13 @@ Default flow:
   1. Check the working tree is clean.
   2. Fetch remotes.
   3. Fast-forward local ${SYNC_BRANCH} to ${UPSTREAM_REMOTE}/${UPSTREAM_BRANCH}.
-  4. Create an upgrade branch from ${CUSTOM_BRANCH}.
-  5. Rebase custom commits onto the refreshed ${SYNC_BRANCH}.
-  6. Run frontend verification.
+  4. Rebase ${CUSTOM_BRANCH} directly onto the refreshed ${SYNC_BRANCH}.
+  5. Run frontend verification on ${CUSTOM_BRANCH}.
 
 Options:
-  --upgrade-branch NAME  Use a specific upgrade branch name.
   --no-fetch            Skip git fetch. Use already-fetched refs.
   --skip-verify         Skip npm test/build verification.
   --push-main           Push refreshed ${SYNC_BRANCH} to ${FORK_REMOTE}.
-  --apply               After verification, move ${CUSTOM_BRANCH} to the upgrade result.
   -h, --help            Show this help.
 
 Environment overrides:
@@ -60,11 +55,6 @@ run() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --upgrade-branch)
-      [[ $# -ge 2 ]] || die "--upgrade-branch requires a value"
-      UPGRADE_BRANCH="$2"
-      shift 2
-      ;;
     --no-fetch)
       FETCH=0
       shift
@@ -75,10 +65,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --push-main)
       PUSH_MAIN=1
-      shift
-      ;;
-    --apply)
-      APPLY_TO_DEVELOP=1
       shift
       ;;
     -h|--help)
@@ -103,15 +89,6 @@ git show-ref --verify --quiet "refs/heads/${SYNC_BRANCH}" \
 git show-ref --verify --quiet "refs/heads/${CUSTOM_BRANCH}" \
   || die "local branch not found: ${CUSTOM_BRANCH}"
 
-CURRENT_BRANCH="$(git branch --show-current)"
-TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-if [[ -z "$UPGRADE_BRANCH" ]]; then
-  UPGRADE_BRANCH="upgrade/${TIMESTAMP}-${UPSTREAM_BRANCH}"
-fi
-
-git show-ref --verify --quiet "refs/heads/${UPGRADE_BRANCH}" \
-  && die "upgrade branch already exists: ${UPGRADE_BRANCH}"
-
 BASE_BEFORE_UPGRADE="$(git merge-base "${CUSTOM_BRANCH}" "${SYNC_BRANCH}")"
 CUSTOM_HEAD_BEFORE_UPGRADE="$(git rev-parse "${CUSTOM_BRANCH}")"
 SYNC_HEAD_BEFORE_UPGRADE="$(git rev-parse "${SYNC_BRANCH}")"
@@ -120,7 +97,6 @@ info "Upgrade configuration"
 echo "  upstream:       ${UPSTREAM_REMOTE}/${UPSTREAM_BRANCH}"
 echo "  sync branch:    ${SYNC_BRANCH}"
 echo "  custom branch:  ${CUSTOM_BRANCH}"
-echo "  upgrade branch: ${UPGRADE_BRANCH}"
 echo "  custom base:    ${BASE_BEFORE_UPGRADE}"
 
 if [[ "$FETCH" -eq 1 ]]; then
@@ -143,18 +119,16 @@ fi
 
 if [[ "$BASE_BEFORE_UPGRADE" == "$CUSTOM_HEAD_BEFORE_UPGRADE" ]]; then
   info "${CUSTOM_BRANCH} has no commits on top of the previous ${SYNC_BRANCH}."
-  run git switch -c "$UPGRADE_BRANCH" "$SYNC_BRANCH"
+  run git switch "$CUSTOM_BRANCH"
+  run git merge --ff-only "$SYNC_BRANCH"
 else
-  info "Creating upgrade branch from ${CUSTOM_BRANCH}"
-  run git switch -c "$UPGRADE_BRANCH" "$CUSTOM_BRANCH"
-
-  info "Rebasing custom commits onto refreshed ${SYNC_BRANCH}"
-  if ! git rebase --onto "$SYNC_BRANCH" "$BASE_BEFORE_UPGRADE"; then
+  info "Rebasing ${CUSTOM_BRANCH} directly onto refreshed ${SYNC_BRANCH}"
+  if ! git rebase --onto "$SYNC_BRANCH" "$BASE_BEFORE_UPGRADE" "$CUSTOM_BRANCH"; then
     cat <<EOF >&2
 
 Rebase stopped because conflicts need manual resolution.
 
-You are on ${UPGRADE_BRANCH}. Continue with:
+You are on ${CUSTOM_BRANCH}. Continue with:
   git status
   # edit conflicted files
   git add <files>
@@ -162,8 +136,6 @@ You are on ${UPGRADE_BRANCH}. Continue with:
 
 Or abort this upgrade attempt:
   git rebase --abort
-  git switch ${CURRENT_BRANCH:-$CUSTOM_BRANCH}
-  git branch -D ${UPGRADE_BRANCH}
 
 EOF
     exit 1
@@ -180,35 +152,12 @@ else
   info "Skipping verification because --skip-verify was provided"
 fi
 
-UPGRADE_HEAD="$(git rev-parse "$UPGRADE_BRANCH")"
-
-if [[ "$APPLY_TO_DEVELOP" -eq 1 ]]; then
-  info "Moving ${CUSTOM_BRANCH} to verified upgrade result"
-  run git switch "$CUSTOM_BRANCH"
-  run git reset --hard "$UPGRADE_HEAD"
-else
-  cat <<EOF
-
-Upgrade branch is ready for review:
-  ${UPGRADE_BRANCH}
-
-To inspect:
-  git log --oneline ${SYNC_BRANCH}..${UPGRADE_BRANCH}
-  git diff ${SYNC_BRANCH}...${UPGRADE_BRANCH}
-
-To promote it to ${CUSTOM_BRANCH} after review:
-  git switch ${CUSTOM_BRANCH}
-  git reset --hard ${UPGRADE_BRANCH}
-
-This script did not touch release.
-EOF
-fi
-
 SYNC_HEAD_AFTER_UPGRADE="$(git rev-parse "${SYNC_BRANCH}")"
+CUSTOM_HEAD_AFTER_UPGRADE="$(git rev-parse "${CUSTOM_BRANCH}")"
 cat <<EOF
 
 Summary:
   ${SYNC_BRANCH}: ${SYNC_HEAD_BEFORE_UPGRADE} -> ${SYNC_HEAD_AFTER_UPGRADE}
-  ${CUSTOM_BRANCH} before upgrade: ${CUSTOM_HEAD_BEFORE_UPGRADE}
-  upgrade branch head: ${UPGRADE_HEAD}
+  ${CUSTOM_BRANCH}: ${CUSTOM_HEAD_BEFORE_UPGRADE} -> ${CUSTOM_HEAD_AFTER_UPGRADE}
+  release: untouched
 EOF
