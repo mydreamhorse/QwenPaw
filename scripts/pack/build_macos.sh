@@ -27,9 +27,13 @@ fi
 if [[ -n "${CURRENT_VERSION}" ]]; then
   shopt -s nullglob
   whls=("${REPO_ROOT}/dist/qwenpaw-${CURRENT_VERSION}-"*.whl)
-  if [[ ${#whls[@]} -gt 0 ]]; then
+  if [[ "${FORCE_WHEEL_BUILD:-0}" != "1" && ${#whls[@]} -gt 0 ]]; then
     echo "dist/ already has wheel for version ${CURRENT_VERSION}, skipping."
   else
+    if [[ "${FORCE_WHEEL_BUILD:-0}" == "1" && ${#whls[@]} -gt 0 ]]; then
+      echo "FORCE_WHEEL_BUILD is set; removing existing wheel files: ${whls[*]}"
+      rm -f "${whls[@]}"
+    fi
     # Clean up old wheels to avoid confusion
     old_whls=("${REPO_ROOT}/dist/qwenpaw-"*.whl)
     if [[ ${#old_whls[@]} -gt 0 ]]; then
@@ -81,6 +85,7 @@ unset PYTHONPATH
 export PYTHONHOME="$ENV_DIR"
 export PYTHONNOUSERSITE=1
 export QWENPAW_DESKTOP_APP=1
+export QWENPAW_DESKTOP_TITLE="${QWENPAW_DESKTOP_TITLE:-__APP_DISPLAY_NAME__}"
 
 # Preserve system PATH for accessing system commands (e.g. imsg, brew)
 # Prepend packaged env/bin so packaged Python takes precedence
@@ -110,6 +115,7 @@ if [ ! -t 2 ]; then
     echo "Python: $ENV_DIR/bin/python (exists=$([ -x "$ENV_DIR/bin/python" ] && echo yes || echo no))"
     echo "PATH=$PATH"
     echo "LOG_LEVEL=$LOG_LEVEL"
+    echo "QWENPAW_DESKTOP_TITLE=${QWENPAW_DESKTOP_TITLE:-not set}"
     echo "SSL_CERT_FILE=${SSL_CERT_FILE:-not set}"
     if [ -n "$SSL_CERT_FILE" ] && [ -f "$SSL_CERT_FILE" ]; then
       echo "SSL certificate file found at $SSL_CERT_FILE"
@@ -145,6 +151,9 @@ if [ ! -f "$HOME/.qwenpaw/config.json" ]; then
 fi
 exec "$ENV_DIR/bin/python" -u -m qwenpaw desktop --log-level "$LOG_LEVEL"
 LAUNCHER
+APP_DISPLAY_NAME="$APP_DISPLAY_NAME" perl -0pi -e \
+  's/__APP_DISPLAY_NAME__/$ENV{APP_DISPLAY_NAME}/g' \
+  "${APP_DIR}/Contents/MacOS/${APP_NAME}"
 chmod +x "${APP_DIR}/Contents/MacOS/${APP_NAME}"
 
 # Icon: use pre-generated icon.icns

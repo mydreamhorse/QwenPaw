@@ -24,6 +24,11 @@ except ImportError:
     webview = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+DEFAULT_DESKTOP_TITLE = "QwenPaw Desktop"
+
+
+def _desktop_window_title() -> str:
+    return os.environ.get("QWENPAW_DESKTOP_TITLE", DEFAULT_DESKTOP_TITLE)
 
 
 class WebViewAPI:
@@ -222,7 +227,7 @@ def desktop_cmd(
                 logger.info("HTTP ready, creating webview window...")
                 api = WebViewAPI()
                 webview.create_window(
-                    "QwenPaw Desktop",
+                    _desktop_window_title(),
                     url,
                     width=1280,
                     height=800,
