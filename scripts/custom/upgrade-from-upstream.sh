@@ -103,12 +103,10 @@ git show-ref --verify --quiet "refs/heads/${CUSTOM_BRANCH}" \
 
 # ── Pre-flight: verify remotes ─────────────────────────────────────────────
 
-if [[ "$FETCH" -eq 1 ]]; then
-  git remote get-url "$UPSTREAM_REMOTE" &>/dev/null \
-    || die "remote '${UPSTREAM_REMOTE}' not found. Add it with: git remote add ${UPSTREAM_REMOTE} <url>"
-  git remote get-url "$FORK_REMOTE" &>/dev/null \
-    || die "remote '${FORK_REMOTE}' not found."
-fi
+git remote get-url "$UPSTREAM_REMOTE" &>/dev/null \
+  || die "remote '${UPSTREAM_REMOTE}' not found. Add it with: git remote add ${UPSTREAM_REMOTE} <url>"
+git remote get-url "$FORK_REMOTE" &>/dev/null \
+  || die "remote '${FORK_REMOTE}' not found."
 
 # ── Snapshot ────────────────────────────────────────────────────────────────
 
