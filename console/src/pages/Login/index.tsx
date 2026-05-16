@@ -7,6 +7,7 @@ import { LockOutlined, UserOutlined } from "@ant-design/icons";
 import { authApi } from "../../api/modules/auth";
 import { setAuthToken } from "../../api/config";
 import { useTheme } from "../../contexts/ThemeContext";
+import { productProfile } from "../../product/profile";
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -23,7 +24,7 @@ export default function LoginPage() {
       .getStatus()
       .then((res) => {
         if (!res.enabled) {
-          navigate("/chat", { replace: true });
+          navigate(productProfile.defaultRoute, { replace: true });
           return;
         }
         setHasUsers(res.has_users);
@@ -37,9 +38,10 @@ export default function LoginPage() {
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {
-      const raw = searchParams.get("redirect") || "/chat";
+      const fallbackRoute = productProfile.defaultRoute;
+      const raw = searchParams.get("redirect") || fallbackRoute;
       const redirect =
-        raw.startsWith("/") && !raw.startsWith("//") ? raw : "/chat";
+        raw.startsWith("/") && !raw.startsWith("//") ? raw : fallbackRoute;
 
       if (isRegister) {
         const res = await authApi.register(values.username, values.password);
@@ -96,8 +98,10 @@ export default function LoginPage() {
       >
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <img
-            src={isDark ? "/logo-dark.svg" : "/logo-light.svg"}
-            alt="QwenPaw"
+            src={
+              isDark ? productProfile.logos.dark : productProfile.logos.light
+            }
+            alt={productProfile.appName}
             style={{ height: 48, marginBottom: 12 }}
           />
           <h2 style={{ margin: 0, fontWeight: 600, fontSize: 20 }}>

@@ -17,8 +17,24 @@ describe("providerApi", () => {
   });
 
   it("listProviders calls /models", async () => {
+    vi.mocked(request).mockResolvedValue([]);
     await providerApi.listProviders();
     expect(request).toHaveBeenCalledWith("/models");
+  });
+
+  it("listProviders only returns product-visible providers", async () => {
+    vi.mocked(request).mockResolvedValue([
+      { id: "deepseek", name: "DeepSeek" },
+      { id: "openai", name: "OpenAI" },
+      { id: "custom-one", name: "Custom One", is_custom: true },
+    ]);
+
+    const providers = await providerApi.listProviders();
+
+    expect(providers.map((provider) => provider.id)).toEqual([
+      "deepseek",
+      "custom-one",
+    ]);
   });
 
   it("getActiveModels with no params calls /models/active", async () => {

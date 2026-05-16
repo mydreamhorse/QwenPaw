@@ -21,6 +21,7 @@ import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CopyOutlined, CheckOutlined, TagOutlined } from "@ant-design/icons";
+import { productProfile } from "../product/profile";
 
 const { Header: AntHeader } = Layout;
 
@@ -65,6 +66,10 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
+    if (!productProfile.updateCheck.enabled) {
+      return;
+    }
+
     fetch(PYPI_URL)
       .then((res) => res.json())
       .then((data) => {
@@ -109,7 +114,10 @@ export default function Header() {
   }, []);
 
   const hasUpdate =
-    !!version && !!latestVersion && compareVersions(latestVersion, version) > 0;
+    productProfile.updateCheck.enabled &&
+    !!version &&
+    !!latestVersion &&
+    compareVersions(latestVersion, version) > 0;
 
   const handleOpenUpdateModal = () => {
     setUpdateMarkdown("");
@@ -154,8 +162,10 @@ export default function Header() {
       <AntHeader className={styles.header}>
         <div className={styles.logoWrapper}>
           <img
-            src={isDark ? "/logo-dark.svg" : "/logo-light.svg"}
-            alt="QwenPaw"
+            src={
+              isDark ? productProfile.logos.dark : productProfile.logos.light
+            }
+            alt={productProfile.appName}
             className={styles.logoImg}
           />
           <div className={styles.logoDivider} />
@@ -179,36 +189,48 @@ export default function Header() {
           )}
         </div>
         <Space size="middle">
-          <Tooltip title={t("header.changelog")}>
-            <Button
-              type="text"
-              onClick={() => handleNavClick(getReleaseNotesUrl(i18n.language))}
-            >
-              {t("header.changelog")}
-            </Button>
-          </Tooltip>
-          <Tooltip title={t("header.docs")}>
-            <Button
-              type="text"
-              onClick={() => handleNavClick(getDocsUrl(i18n.language))}
-            >
-              {t("header.docs")}
-            </Button>
-          </Tooltip>
-          <Tooltip title={t("header.faq")}>
-            <Button
-              type="text"
-              onClick={() => handleNavClick(getFaqUrl(i18n.language))}
-            >
-              {t("header.faq")}
-            </Button>
-          </Tooltip>
-          <Tooltip title={t("header.github")}>
-            <Button type="text" onClick={() => handleNavClick(GITHUB_URL)}>
-              {t("header.github")}
-            </Button>
-          </Tooltip>
-          <div className={styles.headerDivider} />
+          {productProfile.headerLinks.changelog && (
+            <Tooltip title={t("header.changelog")}>
+              <Button
+                type="text"
+                onClick={() =>
+                  handleNavClick(getReleaseNotesUrl(i18n.language))
+                }
+              >
+                {t("header.changelog")}
+              </Button>
+            </Tooltip>
+          )}
+          {productProfile.headerLinks.docs && (
+            <Tooltip title={t("header.docs")}>
+              <Button
+                type="text"
+                onClick={() => handleNavClick(getDocsUrl(i18n.language))}
+              >
+                {t("header.docs")}
+              </Button>
+            </Tooltip>
+          )}
+          {productProfile.headerLinks.faq && (
+            <Tooltip title={t("header.faq")}>
+              <Button
+                type="text"
+                onClick={() => handleNavClick(getFaqUrl(i18n.language))}
+              >
+                {t("header.faq")}
+              </Button>
+            </Tooltip>
+          )}
+          {productProfile.headerLinks.github && (
+            <Tooltip title={t("header.github")}>
+              <Button type="text" onClick={() => handleNavClick(GITHUB_URL)}>
+                {t("header.github")}
+              </Button>
+            </Tooltip>
+          )}
+          {Object.values(productProfile.headerLinks).some(Boolean) && (
+            <div className={styles.headerDivider} />
+          )}
           <LanguageSwitcher />
           <ThemeToggleButton />
         </Space>

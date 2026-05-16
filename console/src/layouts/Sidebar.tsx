@@ -50,6 +50,11 @@ import { usePlugins } from "../plugins/PluginContext";
 import styles from "./index.module.less";
 import { useTheme } from "../contexts/ThemeContext";
 import { KEY_TO_PATH, DEFAULT_OPEN_KEYS } from "./constants";
+import {
+  filterVisibleRoutes,
+  isRouteHidden,
+  isRouteKeyHidden,
+} from "../product/profile";
 
 // ── Layout ────────────────────────────────────────────────────────────────
 
@@ -71,6 +76,37 @@ interface SidebarProps {
   selectedKey: string;
 }
 
+function filterMenuItems(items: MenuProps["items"]): MenuProps["items"] {
+  if (!items) return items;
+
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object") return item;
+
+      const key =
+        "key" in item && item.key !== undefined && item.key !== null
+          ? String(item.key)
+          : "";
+      if (key && isRouteKeyHidden(key, KEY_TO_PATH)) {
+        return null;
+      }
+
+      const itemWithChildren = item as typeof item & {
+        children?: MenuProps["items"];
+      };
+      if (Array.isArray(itemWithChildren.children)) {
+        const children = filterMenuItems(itemWithChildren.children);
+        if (!children || children.length === 0) {
+          return null;
+        }
+        return { ...item, children };
+      }
+
+      return item;
+    })
+    .filter(Boolean) as MenuProps["items"];
+}
+
 // ── Sidebar ───────────────────────────────────────────────────────────────
 
 export default function Sidebar({ selectedKey }: SidebarProps) {
@@ -79,6 +115,7 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
   const { message } = useAppMessage();
   const { isDark } = useTheme();
   const { pluginRoutes } = usePlugins();
+  const visiblePluginRoutes = filterVisibleRoutes(pluginRoutes);
   const [authEnabled, setAuthEnabled] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [accountLoading, setAccountLoading] = useState(false);
@@ -363,13 +400,16 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
       label: t("nav.pluginManager", "Plugin Manager"),
     },
     // Append plugin nav items dynamically
-    ...pluginRoutes.map((route) => ({
+    ...visiblePluginRoutes.map((route) => ({
       key: route.path.replace(/^\//, ""),
       icon: <span style={{ fontSize: 18 }}>{route.icon}</span>,
       path: route.path,
       label: route.label,
     })),
   ];
+  const visibleCollapsedNavItems = collapsedNavItems.filter(
+    (item) => !isRouteHidden(item.path),
+  );
 
   // ── Menu items — agent-scoped (Chat + Control + Workspace) ──────────────
 
@@ -510,17 +550,20 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
   ];
 
   // Append plugin menu items as a group (only when there are plugins)
-  if (pluginRoutes.length > 0) {
+  if (visiblePluginRoutes.length > 0) {
     settingsMenuItems.push({
       key: "plugins-group",
       label: collapsed ? null : t("nav.plugins"),
-      children: pluginRoutes.map((route) => ({
+      children: visiblePluginRoutes.map((route) => ({
         key: route.path.replace(/^\//, ""),
         label: collapsed ? null : route.label,
         icon: <span style={{ fontSize: 16 }}>{route.icon}</span>,
       })),
     } as any);
   }
+
+  const visibleAgentMenuItems = filterMenuItems(agentMenuItems);
+  const visibleSettingsMenuItems = filterMenuItems(settingsMenuItems);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -535,7 +578,7 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
     >
       {collapsed ? (
         <nav className={styles.collapsedNav}>
-          {collapsedNavItems.map((item) => {
+          {visibleCollapsedNavItems.map((item) => {
             const isActive = selectedKey === item.key;
             return (
               <Tooltip
@@ -586,7 +629,7 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
                 const path = KEY_TO_PATH[String(key)];
                 if (path) navigate(path);
               }}
-              items={agentMenuItems}
+              items={visibleAgentMenuItems}
               theme={isDark ? "dark" : "light"}
               className={styles.sideMenu}
             />
@@ -598,13 +641,13 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
             selectedKeys={[selectedKey]}
             openKeys={[
               ...DEFAULT_OPEN_KEYS,
-              ...(pluginRoutes.length > 0 ? ["plugins-group"] : []),
+              ...(visiblePluginRoutes.length > 0 ? ["plugins-group"] : []),
             ]}
             onClick={({ key }) => {
               const path = KEY_TO_PATH[String(key)] ?? `/${String(key)}`;
               navigate(path);
             }}
-            items={settingsMenuItems}
+            items={visibleSettingsMenuItems}
             theme={isDark ? "dark" : "light"}
             className={styles.sideMenu}
           />

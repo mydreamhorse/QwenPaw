@@ -1,13 +1,14 @@
 import type { TFunction } from "i18next";
+import { productProfile } from "../../../product/profile";
 
 const defaultConfig = {
   theme: {
-    colorPrimary: "#FF7F16",
+    colorPrimary: productProfile.theme.colorPrimary,
     darkMode: false,
     prefix: "qwenpaw",
     leftHeader: {
       logo: "",
-      title: "Work with QwenPaw",
+      title: `Work with ${productProfile.appName}`,
     },
   },
   sender: {

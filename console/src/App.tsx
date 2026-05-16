@@ -28,6 +28,7 @@ import { PluginProvider, usePlugins } from "./plugins/PluginContext";
 import { ApprovalProvider } from "./contexts/ApprovalContext";
 import { Suspense } from "react";
 import { lazyImportWithRetry } from "./utils/lazyWithRetry";
+import { productProfile } from "./product/profile";
 
 const LoginPage = lazyImportWithRetry("./pages/Login/index");
 import { authApi } from "./api/modules/auth";
@@ -132,6 +133,10 @@ function AppInner() {
   );
 
   useEffect(() => {
+    document.title = productProfile.appName;
+  }, []);
+
+  useEffect(() => {
     if (!localStorage.getItem("language")) {
       languageApi
         .getLanguage()
@@ -182,7 +187,7 @@ function AppInner() {
             ? antdTheme.darkAlgorithm
             : antdTheme.defaultAlgorithm,
           token: {
-            colorPrimary: "#FF7F16",
+            colorPrimary: productProfile.theme.colorPrimary,
           },
         }}
       >

@@ -32,6 +32,7 @@ import { ApprovalCard } from "../../components/ApprovalCard/ApprovalCard";
 import { commandsApi } from "../../api/modules/commands";
 import { useApprovalContext } from "../../contexts/ApprovalContext";
 import { planApi } from "../../api/modules/plan";
+import { productProfile } from "../../product/profile";
 
 interface ApprovalMessageData {
   requestId: string;
@@ -1049,8 +1050,8 @@ export default function ChatPage() {
       },
       welcome: {
         ...i18nConfig.welcome,
-        nick: "QwenPaw",
-        avatar: "/qwenpaw.png",
+        nick: productProfile.chat.assistantName,
+        avatar: productProfile.logos.avatar,
       },
       sender: {
         ...(i18nConfig as any)?.sender,

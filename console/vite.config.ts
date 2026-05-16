@@ -19,6 +19,8 @@ export default defineConfig(({ mode }) => {
   // Empty = same-origin; frontend and backend served together, no hardcoded host.
   // Use a dedicated Vite-prefixed key so unrelated shell BASE_URL values don't leak into the build.
   const apiBaseUrl = env.VITE_API_BASE_URL ?? "";
+  const devApiProxyTarget =
+    env.VITE_DEV_API_PROXY_TARGET ?? "http://127.0.0.1:8088";
 
   return {
     define: {
@@ -46,6 +48,15 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "0.0.0.0",
       port: 5173,
+      proxy:
+        apiBaseUrl === ""
+          ? {
+              "/api": {
+                target: devApiProxyTarget,
+                changeOrigin: true,
+              },
+            }
+          : undefined,
     },
     test: {
       globals: true,

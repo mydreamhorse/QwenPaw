@@ -5,6 +5,9 @@
 .pnp.js
 node_modules/
 sessions_mount_dir/
+.qwenpaw-dev/
+.qwenpaw-dev.secret/
+.qwenpaw-model-config-export/
 
 # testing
 /coverage

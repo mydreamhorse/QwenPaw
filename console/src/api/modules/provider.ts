@@ -1,4 +1,5 @@
 import { request } from "../request";
+import { isModelProviderVisible } from "../../product/profile";
 import type {
   ProviderInfo,
   ProviderConfigRequest,
@@ -41,12 +42,18 @@ function buildActiveModelQuery(params?: GetActiveModelsRequest): string {
 let listProvidersPromise: Promise<ProviderInfo[]> | null = null;
 const activeModelPromises = new Map<string, Promise<ActiveModelsInfo>>();
 
+function filterVisibleProviders(providers: ProviderInfo[]): ProviderInfo[] {
+  return providers.filter(isModelProviderVisible);
+}
+
 export const providerApi = {
   listProviders: () => {
     if (listProvidersPromise) return listProvidersPromise;
-    listProvidersPromise = request<ProviderInfo[]>("/models").finally(() => {
-      listProvidersPromise = null;
-    });
+    listProvidersPromise = request<ProviderInfo[]>("/models")
+      .then(filterVisibleProviders)
+      .finally(() => {
+        listProvidersPromise = null;
+      });
     return listProvidersPromise;
   },
 
@@ -88,7 +95,7 @@ export const providerApi = {
     request<ProviderInfo[]>(
       `/models/custom-providers/${encodeURIComponent(providerId)}`,
       { method: "DELETE" },
-    ),
+    ).then(filterVisibleProviders),
 
   /* ---- Model CRUD (works for both built-in and custom providers) ---- */
 

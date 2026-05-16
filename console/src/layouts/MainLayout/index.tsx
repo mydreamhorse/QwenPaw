@@ -9,6 +9,11 @@ import { ChunkErrorBoundary } from "../../components/ChunkErrorBoundary";
 import { lazyImportWithRetry } from "../../utils/lazyWithRetry";
 import { usePlugins } from "../../plugins/PluginContext";
 import styles from "../index.module.less";
+import {
+  filterVisibleRoutes,
+  isRouteHidden,
+  productProfile,
+} from "../../product/profile";
 
 // Chat is eagerly loaded (default landing page)
 import Chat from "../../pages/Chat";
@@ -76,11 +81,20 @@ export default function MainLayout() {
   const location = useLocation();
   const currentPath = location.pathname;
   const { pluginRoutes } = usePlugins();
+  const visiblePluginRoutes = filterVisibleRoutes(pluginRoutes);
+
+  if (
+    productProfile.redirectHiddenRoutes &&
+    isRouteHidden(currentPath) &&
+    currentPath !== productProfile.defaultRoute
+  ) {
+    return <Navigate to={productProfile.defaultRoute} replace />;
+  }
 
   // Resolve selected key: check static routes first, then plugin routes
   let selectedKey = pathToKey[currentPath] || "";
   if (!selectedKey) {
-    const matchedPlugin = pluginRoutes.find(
+    const matchedPlugin = visiblePluginRoutes.find(
       (route) => currentPath === route.path,
     );
     selectedKey = matchedPlugin
@@ -106,7 +120,12 @@ export default function MainLayout() {
                 }
               >
                 <Routes>
-                  <Route path="/" element={<Navigate to="/chat" replace />} />
+                  <Route
+                    path="/"
+                    element={
+                      <Navigate to={productProfile.defaultRoute} replace />
+                    }
+                  />
                   <Route path="/chat/*" element={<Chat />} />
                   <Route path="/channels" element={<ChannelsPage />} />
                   <Route path="/sessions" element={<SessionsPage />} />
@@ -139,7 +158,7 @@ export default function MainLayout() {
                   />
 
                   {/* Plugin routes — dynamically injected at runtime */}
-                  {pluginRoutes.map((route) => (
+                  {visiblePluginRoutes.map((route) => (
                     <Route
                       key={route.path}
                       path={route.path}
