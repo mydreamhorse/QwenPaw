@@ -143,7 +143,7 @@ fi
 
 # ── Backup tag ──────────────────────────────────────────────────────────────
 
-BACKUP_TAG="custom-backup-$(date +%Y%m%d%H%M)"
+BACKUP_TAG="custom-backup-$(date +%Y%m%d%H%M%S)-${CUSTOM_HEAD_BEFORE_UPGRADE:0:8}"
 info "Creating backup tag: ${BACKUP_TAG} -> ${CUSTOM_HEAD_BEFORE_UPGRADE}"
 run git tag "$BACKUP_TAG" "$CUSTOM_HEAD_BEFORE_UPGRADE"
 
