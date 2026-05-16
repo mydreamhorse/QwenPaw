@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-click build: console -> conda-pack -> QwenPaw.app. Run from repo root.
+# One-click build: console -> conda-pack -> macOS .app. Run from repo root.
 # Requires: conda, node/npm (for console). Optional: icon.icns in assets/.
 
 set -e
@@ -8,7 +8,10 @@ cd "$REPO_ROOT"
 PACK_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST="${DIST:-dist}"
 ARCHIVE="${DIST}/qwenpaw-env.tar.gz"
-APP_NAME="QwenPaw"
+APP_NAME="${APP_NAME:-QwenPaw}"
+APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-${APP_NAME}}"
+APP_BUNDLE_IDENTIFIER="${APP_BUNDLE_IDENTIFIER:-com.qwenpaw.desktop}"
+ZIP_BASENAME="${ZIP_BASENAME:-${APP_NAME}}"
 APP_DIR="${DIST}/${APP_NAME}.app"
 
 echo "== Building wheel (includes console frontend) =="
@@ -40,21 +43,34 @@ else
 fi
 
 echo "== Building conda-packed env =="
-python "${PACK_DIR}/build_common.py" --output "$ARCHIVE" --format tar.gz
+if [[ -n "${SKIP_ENV_BUILD:-}" && -f "$ARCHIVE" ]]; then
+  echo "SKIP_ENV_BUILD is set; reusing ${ARCHIVE}"
+else
+  python "${PACK_DIR}/build_common.py" --output "$ARCHIVE" --format tar.gz
+fi
 
 echo "== Building .app bundle =="
 rm -rf "$APP_DIR"
 mkdir -p "${APP_DIR}/Contents/MacOS"
 mkdir -p "${APP_DIR}/Contents/Resources"
 
-# Unpack conda env into Resources/env
-mkdir -p "${APP_DIR}/Contents/Resources/env"
-tar -xzf "$ARCHIVE" -C "${APP_DIR}/Contents/Resources/env" --strip-components=0
+# Unpack outside the .app first. macOS can apply extra provenance checks inside
+# app bundles, which makes bsdtar intermittently fail while creating many files.
+ENV_STAGING="$(mktemp -d "${TMPDIR:-/tmp}/qwenpaw-env.XXXXXX")"
+cleanup_env_staging() {
+  if [[ -n "${ENV_STAGING:-}" && -d "$ENV_STAGING" ]]; then
+    rm -rf "$ENV_STAGING"
+  fi
+}
+trap cleanup_env_staging EXIT
+tar -xzf "$ARCHIVE" -C "$ENV_STAGING" --strip-components=0
 
 # Fix paths for portability (required or app will crash on launch)
-if [[ -x "${APP_DIR}/Contents/Resources/env/bin/conda-unpack" ]]; then
-  (cd "${APP_DIR}/Contents/Resources/env" && ./bin/conda-unpack)
+if [[ -x "${ENV_STAGING}/bin/conda-unpack" ]]; then
+  (cd "$ENV_STAGING" && ./bin/conda-unpack)
 fi
+mv "$ENV_STAGING" "${APP_DIR}/Contents/Resources/env"
+ENV_STAGING=""
 
 # Launcher: force packed env; when no TTY log to ~/.qwenpaw/desktop.log (no exec so we see errors)
 cat > "${APP_DIR}/Contents/MacOS/${APP_NAME}" << 'LAUNCHER'
@@ -164,13 +180,14 @@ cat > "${APP_DIR}/Contents/Info.plist" << INFOPLIST
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key><string>${APP_NAME}</string>
-  <key>CFBundleIdentifier</key><string>com.qwenpaw.desktop</string>
-  <key>CFBundleName</key><string>${APP_NAME}</string>
+  <key>CFBundleIdentifier</key><string>${APP_BUNDLE_IDENTIFIER}</string>
+  <key>CFBundleName</key><string>${APP_DISPLAY_NAME}</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+  <key>CFBundleDisplayName</key><string>${APP_DISPLAY_NAME}</string>
   ${ICON_PLIST}<key>NSHighResolutionCapable</key><true/>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
-  <key>NSDesktopFolderUsageDescription</key><string>QwenPaw may access files in your Desktop folder if you use file-related features. You can choose Don'\''t Allow; the app will still run with limited file access.</string>
+  <key>NSDesktopFolderUsageDescription</key><string>${APP_DISPLAY_NAME} may access files in your Desktop folder if you use file-related features. You can choose Don'\''t Allow; the app will still run with limited file access.</string>
 </dict>
 </plist>
 INFOPLIST
@@ -178,7 +195,7 @@ INFOPLIST
 echo "== Built ${APP_DIR} =="
 # Optional: create zip for distribution (set CREATE_ZIP=1)
 if [[ -n "${CREATE_ZIP}" ]]; then
-  ZIP_NAME="${DIST}/QwenPaw-${VERSION}-macOS.zip"
+  ZIP_NAME="${DIST}/${ZIP_BASENAME}-${VERSION}-macOS.zip"
   ditto -c -k --sequesterRsrc --keepParent "${APP_DIR}" "${ZIP_NAME}"
   echo "== Created ${ZIP_NAME} =="
 fi

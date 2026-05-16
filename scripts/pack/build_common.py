@@ -8,6 +8,7 @@ Used by build_macos.sh and build_win.ps1. Run from repo root.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import random
 import string
@@ -42,13 +43,45 @@ def _conda_exe() -> str:
 def _run(
     cmd: list[str],
     cwd: Path | None = None,
-    env: dict[str, str] | None = None,
+    env: dict[str, str | None] | None = None,
 ) -> None:
     """Run command with optional environment variable overrides."""
     run_env = os.environ.copy()
     if env:
-        run_env.update(env)
+        for key, value in env.items():
+            if value is None:
+                run_env.pop(key, None)
+            else:
+                run_env[key] = value
     subprocess.run(cmd, cwd=cwd or REPO_ROOT, env=run_env, check=True)
+
+
+def _conda_env_prefix(conda: str, env_name: str) -> Path:
+    """Return the absolute prefix path for a named conda environment."""
+    data = json.loads(
+        subprocess.check_output(
+            [conda, "env", "list", "--json"],
+            text=True,
+        ),
+    )
+    suffix = f"{os.sep}{env_name}"
+    for env_path in data.get("envs", []):
+        path = Path(env_path)
+        if path.name == env_name or str(path).endswith(suffix):
+            return path
+    raise RuntimeError(f"Conda env not found after creation: {env_name}")
+
+
+def _env_python(env_dir: Path) -> Path:
+    if os.name == "nt":
+        return env_dir / "python.exe"
+    return env_dir / "bin" / "python"
+
+
+def _env_conda_pack(env_dir: Path) -> Path:
+    if os.name == "nt":
+        return env_dir / "Scripts" / "conda-pack.exe"
+    return env_dir / "bin" / "conda-pack"
 
 
 def _pick_wheel(wheel_arg: str | None) -> Path:
@@ -120,6 +153,7 @@ def main() -> int:
     )
 
     conda = _conda_exe()
+    env_dir: Path | None = None
     try:
         _run(
             [
@@ -132,18 +166,20 @@ def main() -> int:
                 "-y",
             ],
         )
+        env_dir = _conda_env_prefix(conda, env_name)
+        python = _env_python(env_dir)
         # Install qwenpaw with all dependencies
         # Scope CMAKE_ARGS to this specific command to avoid affecting other
         # CMake-based packages. Only set if we need to compile from source.
-        install_env = {}
+        install_env = {
+            "PYTHONHOME": None,
+            "PYTHONPATH": None,
+            "PYTHONNOUSERSITE": "1",
+        }
 
         _run(
             [
-                conda,
-                "run",
-                "-n",
-                env_name,
-                "python",
+                str(python),
                 "-m",
                 "pip",
                 "install",
@@ -154,14 +190,11 @@ def main() -> int:
         print("Verifying certifi is installed (required for SSL)...")
         _run(
             [
-                conda,
-                "run",
-                "-n",
-                env_name,
-                "python",
+                str(python),
                 "-c",
                 "import certifi; print(f'certifi OK: {certifi.where()}')",
             ],
+            env=install_env,
         )
         if args.cache_wheels:
             # Store outside dist/ to avoid being deleted by wheel_build cleanup
@@ -173,11 +206,7 @@ def main() -> int:
             )
             _run(
                 [
-                    conda,
-                    "run",
-                    "-n",
-                    env_name,
-                    "python",
+                    str(python),
                     "-m",
                     "pip",
                     "download",
@@ -185,17 +214,16 @@ def main() -> int:
                     "-d",
                     str(wheels_cache),
                 ],
+                env=install_env,
             )
         # pip may uninstall/reinstall files owned by conda while resolving
         # qwenpaw[full]. Restore conda-managed packaging tools before packing.
         _run(
             [
                 conda,
-                "run",
+                "install",
                 "-n",
                 env_name,
-                conda,
-                "install",
                 "-y",
                 "--force-reinstall",
                 "pip",
@@ -206,25 +234,20 @@ def main() -> int:
         _run(
             [
                 conda,
-                "run",
+                "install",
                 "-n",
                 env_name,
-                conda,
-                "install",
                 "-y",
                 "conda-pack",
             ],
         )
         if out_path.exists():
             out_path.unlink()
+        conda_pack = _env_conda_pack(env_dir)
         pack_cmd = [
-            conda,
-            "run",
-            "-n",
-            env_name,
-            "conda-pack",
-            "-n",
-            env_name,
+            str(conda_pack),
+            "-p",
+            str(env_dir),
             "-o",
             str(out_path),
             "-f",
