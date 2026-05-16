@@ -51,9 +51,9 @@ import styles from "./index.module.less";
 import { useTheme } from "../contexts/ThemeContext";
 import { KEY_TO_PATH, DEFAULT_OPEN_KEYS } from "./constants";
 import {
+  filterMenuItems,
   filterVisibleRoutes,
   isRouteHidden,
-  isRouteKeyHidden,
 } from "../product/profile";
 
 // ── Layout ────────────────────────────────────────────────────────────────
@@ -74,37 +74,6 @@ const INBOX_BADGE_POLLING_MS = 6000;
 
 interface SidebarProps {
   selectedKey: string;
-}
-
-function filterMenuItems(items: MenuProps["items"]): MenuProps["items"] {
-  if (!items) return items;
-
-  return items
-    .map((item) => {
-      if (!item || typeof item !== "object") return item;
-
-      const key =
-        "key" in item && item.key !== undefined && item.key !== null
-          ? String(item.key)
-          : "";
-      if (key && isRouteKeyHidden(key, KEY_TO_PATH)) {
-        return null;
-      }
-
-      const itemWithChildren = item as typeof item & {
-        children?: MenuProps["items"];
-      };
-      if (Array.isArray(itemWithChildren.children)) {
-        const children = filterMenuItems(itemWithChildren.children);
-        if (!children || children.length === 0) {
-          return null;
-        }
-        return { ...item, children };
-      }
-
-      return item;
-    })
-    .filter(Boolean) as MenuProps["items"];
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────
@@ -562,8 +531,8 @@ export default function Sidebar({ selectedKey }: SidebarProps) {
     } as any);
   }
 
-  const visibleAgentMenuItems = filterMenuItems(agentMenuItems);
-  const visibleSettingsMenuItems = filterMenuItems(settingsMenuItems);
+  const visibleAgentMenuItems = filterMenuItems(agentMenuItems, KEY_TO_PATH);
+  const visibleSettingsMenuItems = filterMenuItems(settingsMenuItems, KEY_TO_PATH);
 
   // ── Render ────────────────────────────────────────────────────────────────
 

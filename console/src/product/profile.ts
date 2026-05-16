@@ -1,3 +1,5 @@
+import type { MenuProps } from "antd";
+
 export type HeaderLinkKey = "changelog" | "docs" | "faq" | "github";
 
 export interface ProductProfile {
@@ -108,4 +110,38 @@ export function isModelProviderVisible(provider: {
   return productProfile.modelProviders.allowedProviderIdPrefixes.some((prefix) =>
     provider.id.startsWith(prefix),
   );
+}
+
+export function filterMenuItems(
+  items: MenuProps["items"],
+  keyToPath: Record<string, string>,
+): MenuProps["items"] {
+  if (!items) return items;
+
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object") return item;
+
+      const key =
+        "key" in item && item.key !== undefined && item.key !== null
+          ? String(item.key)
+          : "";
+      if (key && isRouteKeyHidden(key, keyToPath)) {
+        return null;
+      }
+
+      const itemWithChildren = item as typeof item & {
+        children?: MenuProps["items"];
+      };
+      if (Array.isArray(itemWithChildren.children)) {
+        const children = filterMenuItems(itemWithChildren.children, keyToPath);
+        if (!children || children.length === 0) {
+          return null;
+        }
+        return { ...item, children };
+      }
+
+      return item;
+    })
+    .filter(Boolean) as MenuProps["items"];
 }
