@@ -136,6 +136,14 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--extras",
+        default="full",
+        help=(
+            "Comma-separated extras to install (default: full). "
+            "Use 'local' for desktop builds to skip whisper (~630MB smaller)."
+        ),
+    )
+    parser.add_argument(
         "--cache-wheels",
         action="store_true",
         help=(
@@ -177,13 +185,14 @@ def main() -> int:
             "PYTHONNOUSERSITE": "1",
         }
 
+        extras = args.extras
         _run(
             [
                 str(python),
                 "-m",
                 "pip",
                 "install",
-                f"qwenpaw[full] @ {wheel_uri}",
+                f"qwenpaw[{extras}] @ {wheel_uri}",
             ],
             env=install_env,
         )

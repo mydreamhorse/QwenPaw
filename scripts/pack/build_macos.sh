@@ -12,6 +12,7 @@ APP_NAME="${APP_NAME:-QwenPaw}"
 APP_DISPLAY_NAME="${APP_DISPLAY_NAME:-${APP_NAME}}"
 APP_BUNDLE_IDENTIFIER="${APP_BUNDLE_IDENTIFIER:-com.qwenpaw.desktop}"
 ZIP_BASENAME="${ZIP_BASENAME:-${APP_NAME}}"
+PACK_EXTRAS="${PACK_EXTRAS:-local}"
 APP_DIR="${DIST}/${APP_NAME}.app"
 
 echo "== Building wheel (includes console frontend) =="
@@ -50,7 +51,7 @@ echo "== Building conda-packed env =="
 if [[ -n "${SKIP_ENV_BUILD:-}" && -f "$ARCHIVE" ]]; then
   echo "SKIP_ENV_BUILD is set; reusing ${ARCHIVE}"
 else
-  python "${PACK_DIR}/build_common.py" --output "$ARCHIVE" --format tar.gz
+  python "${PACK_DIR}/build_common.py" --output "$ARCHIVE" --format tar.gz --extras "$PACK_EXTRAS"
 fi
 
 echo "== Building .app bundle =="
