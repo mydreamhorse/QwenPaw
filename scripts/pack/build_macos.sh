@@ -74,6 +74,22 @@ tar -xzf "$ARCHIVE" -C "$ENV_STAGING" --strip-components=0
 if [[ -x "${ENV_STAGING}/bin/conda-unpack" ]]; then
   (cd "$ENV_STAGING" && ./bin/conda-unpack)
 fi
+
+# Strip x86_64 slices from universal binaries (Apple Silicon only build).
+# macOS warns about Rosetta-dependent apps; this removes the x86_64 code
+# that triggers the warning and saves ~30-65MB.
+ARCH="$(uname -m)"
+if [[ "${ARCH}" == "arm64" ]]; then
+  echo "== Thinning universal binaries to arm64 only =="
+  thin_count=0
+  while IFS= read -r -d '' f; do
+    if lipo -info "$f" 2>/dev/null | grep -q "x86_64"; then
+      lipo -output "$f" -thin arm64 "$f" 2>/dev/null && thin_count=$((thin_count + 1))
+    fi
+  done < <(find "$ENV_STAGING" -type f \( -name "*.so" -o -name "*.dylib" -o -name "*.cpython-*.so" \) -print0)
+  echo "   Thinned ${thin_count} universal binaries to arm64"
+fi
+
 mv "$ENV_STAGING" "${APP_DIR}/Contents/Resources/env"
 ENV_STAGING=""
 
