@@ -11,14 +11,20 @@
 !ifndef QWENPAW_VERSION
   !define QWENPAW_VERSION "0.0.0"
 !endif
+!ifndef APP_NAME
+  !define APP_NAME "QwenPaw"
+!endif
+!ifndef APP_DISPLAY_NAME
+  !define APP_DISPLAY_NAME "QwenPaw Desktop"
+!endif
 !ifndef OUTPUT_EXE
-  !define OUTPUT_EXE "dist\QwenPaw-Setup-${QWENPAW_VERSION}.exe"
+  !define OUTPUT_EXE "dist\${APP_NAME}-Setup-${QWENPAW_VERSION}.exe"
 !endif
 
-Name "QwenPaw Desktop"
+Name "${APP_DISPLAY_NAME}"
 OutFile "${OUTPUT_EXE}"
-InstallDir "$LOCALAPPDATA\QwenPaw"
-InstallDirRegKey HKCU "Software\QwenPaw" "InstallPath"
+InstallDir "$LOCALAPPDATA\${APP_NAME}"
+InstallDirRegKey HKCU "Software\${APP_NAME}" "InstallPath"
 RequestExecutionLevel user
 
 !insertmacro MUI_PAGE_DIRECTORY
@@ -33,24 +39,24 @@ RequestExecutionLevel user
   !define UNPACKED "dist\win-unpacked"
 !endif
 
-Section "QwenPaw Desktop" SEC01
+Section "${APP_DISPLAY_NAME}" SEC01
   SetOutPath "$INSTDIR"
   File /r "${UNPACKED}\*.*"
-  WriteRegStr HKCU "Software\QwenPaw" "InstallPath" "$INSTDIR"
+  WriteRegStr HKCU "Software\${APP_NAME}" "InstallPath" "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   ; Main shortcut - uses VBS to hide console window
-  CreateShortcut "$SMPROGRAMS\QwenPaw Desktop.lnk" "$INSTDIR\QwenPaw Desktop.vbs" "" "$INSTDIR\icon.ico" 0
-  CreateShortcut "$DESKTOP\QwenPaw Desktop.lnk" "$INSTDIR\QwenPaw Desktop.vbs" "" "$INSTDIR\icon.ico" 0
+  CreateShortcut "$SMPROGRAMS\${APP_DISPLAY_NAME}.lnk" "$INSTDIR\${APP_DISPLAY_NAME}.vbs" "" "$INSTDIR\icon.ico" 0
+  CreateShortcut "$DESKTOP\${APP_DISPLAY_NAME}.lnk" "$INSTDIR\${APP_DISPLAY_NAME}.vbs" "" "$INSTDIR\icon.ico" 0
   
   ; Debug shortcut - shows console window for troubleshooting
-  CreateShortcut "$SMPROGRAMS\QwenPaw Desktop (Debug).lnk" "$INSTDIR\QwenPaw Desktop (Debug).bat" "" "$INSTDIR\icon.ico" 0
+  CreateShortcut "$SMPROGRAMS\${APP_DISPLAY_NAME} (Debug).lnk" "$INSTDIR\${APP_DISPLAY_NAME} (Debug).bat" "" "$INSTDIR\icon.ico" 0
 SectionEnd
 
 Section "Uninstall"
-  Delete "$SMPROGRAMS\QwenPaw Desktop.lnk"
-  Delete "$SMPROGRAMS\QwenPaw Desktop (Debug).lnk"
-  Delete "$DESKTOP\QwenPaw Desktop.lnk"
+  Delete "$SMPROGRAMS\${APP_DISPLAY_NAME}.lnk"
+  Delete "$SMPROGRAMS\${APP_DISPLAY_NAME} (Debug).lnk"
+  Delete "$DESKTOP\${APP_DISPLAY_NAME}.lnk"
   RMDir /r "$INSTDIR"
-  DeleteRegKey HKCU "Software\QwenPaw"
+  DeleteRegKey HKCU "Software\${APP_NAME}"
 SectionEnd
