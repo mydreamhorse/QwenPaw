@@ -341,14 +341,28 @@ $nsiArgs = @(
   $NsiPath
 )
 
-# Debug: Check if makensis is available
-Write-Host "=== Checking makensis availability ==="
-try {
-  $makensisPath = (Get-Command makensis -ErrorAction Stop).Source
-  Write-Host "[build_win] makensis found at: $makensisPath"
-} catch {
-  throw "makensis not found in PATH. Please install NSIS and ensure makensis.exe is in PATH."
+# Check makensis availability; auto-add common install locations to PATH if needed
+$makensisPath = $null
+try { $makensisPath = (Get-Command makensis -ErrorAction Stop).Source } catch {}
+if (-not $makensisPath) {
+  $nsisSearchPaths = @(
+    "D:\tools\NSIS",
+    "C:\Program Files (x86)\NSIS",
+    "C:\Program Files\NSIS"
+  )
+  foreach ($p in $nsisSearchPaths) {
+    if (Test-Path (Join-Path $p "makensis.exe")) {
+      $env:PATH = "$p;$env:PATH"
+      $makensisPath = Join-Path $p "makensis.exe"
+      Write-Host "[build_win] Auto-added NSIS to PATH from: $p"
+      break
+    }
+  }
 }
+if (-not $makensisPath) {
+  throw "makensis not found. Install NSIS to one of: $($nsisSearchPaths -join ', '), or add makensis.exe to PATH."
+}
+Write-Host "[build_win] makensis: $makensisPath"
 
 Write-Host "[build_win] Running: makensis $($nsiArgs -join ' ')"
 Write-Host "=== NSIS will compile from: $NsiPath ==="
