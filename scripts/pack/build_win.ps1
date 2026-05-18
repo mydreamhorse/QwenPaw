@@ -12,7 +12,7 @@ $Unpacked = Join-Path $Dist "win-unpacked"
 $NsiPath = Join-Path $PackDir "desktop.nsi"
 
 $ForceWheelBuild = $env:FORCE_WHEEL_BUILD -eq "1"
-$PackExtras = if ($env:PACK_EXTRAS) { $env:PACK_EXTRAS } else { "full" }
+$PackExtras = if ($env:PACK_EXTRAS) { $env:PACK_EXTRAS } else { "local" }
 $AppName = if ($env:APP_NAME) { $env:APP_NAME } else { "QwenPaw" }
 $AppDisplayName = if ($env:APP_DISPLAY_NAME) { $env:APP_DISPLAY_NAME } else { "QwenPaw Desktop" }
 $DesktopTitle = if ($env:QWENPAW_DESKTOP_TITLE) { $env:QWENPAW_DESKTOP_TITLE } else { $AppDisplayName }
@@ -74,12 +74,16 @@ if ($RunWheelBuild) {
 }
 
 Write-Host "== Building conda-packed env =="
-& python $PackDir\build_common.py --output $Archive --format zip --cache-wheels --extras $PackExtras
-if ($LASTEXITCODE -ne 0) {
-  throw "build_common.py failed with exit code $LASTEXITCODE"
-}
-if (-not (Test-Path $Archive)) {
-  throw "Archive not created: $Archive"
+if ($env:SKIP_ENV_BUILD -and (Test-Path $Archive)) {
+  Write-Host "SKIP_ENV_BUILD is set; reusing $Archive"
+} else {
+  & python $PackDir\build_common.py --output $Archive --format zip --cache-wheels --extras $PackExtras
+  if ($LASTEXITCODE -ne 0) {
+    throw "build_common.py failed with exit code $LASTEXITCODE"
+  }
+  if (-not (Test-Path $Archive)) {
+    throw "Archive not created: $Archive"
+  }
 }
 
 Write-Host "== Unpacking env =="

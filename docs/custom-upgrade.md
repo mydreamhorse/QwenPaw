@@ -16,7 +16,11 @@ latest upstream `main` plus the product customization commits.
 Start from a clean working tree, then run:
 
 ```bash
+# macOS / Linux / Git Bash
 scripts/custom/upgrade-from-upstream.sh
+
+# Windows (PowerShell)
+scripts\custom\upgrade-from-upstream.ps1
 ```
 
 The script will:
@@ -47,6 +51,16 @@ scripts/custom/upgrade-from-upstream.sh --push-main --push-custom
 
 # Skip all verification
 scripts/custom/upgrade-from-upstream.sh --skip-verify
+```
+
+PowerShell equivalent options:
+
+```powershell
+scripts\custom\upgrade-from-upstream.ps1 -NoFetch
+scripts\custom\upgrade-from-upstream.ps1 -PushMain
+scripts\custom\upgrade-from-upstream.ps1 -PushCustom
+scripts\custom\upgrade-from-upstream.ps1 -PushMain -PushCustom
+scripts\custom\upgrade-from-upstream.ps1 -SkipVerify
 ```
 
 ## Release Workflow
