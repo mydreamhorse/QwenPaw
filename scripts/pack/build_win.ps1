@@ -284,7 +284,7 @@ pause
 $LauncherVbs = Join-Path $EnvRoot "$AppDisplayName.vbs"
 $LauncherVbsContent = @"
 Set WshShell = CreateObject("WScript.Shell")
-batPath = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName) & "\$AppDisplayName.bat"
+batPath = Left(WScript.ScriptFullName, Len(WScript.ScriptFullName) - 4) & ".bat"
 WshShell.Run Chr(34) & batPath & Chr(34), 0, False
 Set WshShell = Nothing
 "@
