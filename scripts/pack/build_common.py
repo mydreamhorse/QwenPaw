@@ -37,6 +37,19 @@ def _conda_exe() -> str:
     exe = os.environ.get("CONDA_EXE")
     if exe:
         return exe
+    # Auto-probe common Windows installation paths when CONDA_EXE is not set
+    if sys.platform == "win32":
+        _candidates: list[Path] = []
+        for base in [
+            Path(os.environ.get("PROGRAMDATA", "C:/ProgramData")),
+            Path(os.environ.get("USERPROFILE", "~")).expanduser(),
+            Path("C:/"),
+        ]:
+            for distro in ("miniforge3", "miniconda3", "anaconda3", "Miniconda3", "Anaconda3"):
+                _candidates.append(base / distro / "Scripts" / "conda.exe")
+        for candidate in _candidates:
+            if candidate.exists():
+                return str(candidate)
     return "conda"
 
 
@@ -151,30 +164,56 @@ def main() -> int:
             "Cached to .cache/conda_unpack_wheels/ for later reinstall."
         ),
     )
+    parser.add_argument(
+        "--env-name",
+        default=None,
+        help=(
+            "Use a persistent named conda env instead of a random temp one. "
+            "If the env already exists, skip creation and only update qwenpaw. "
+            "Env is NOT removed after packing. Example: qwenpaw_pack_stable"
+        ),
+    )
     args = parser.parse_args()
     out_path = Path(args.output).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wheel_path = _pick_wheel(args.wheel)
     wheel_uri = wheel_path.resolve().as_uri()
+    is_temp_env = args.env_name is None
     env_name = (
-        f"{ENV_PREFIX}{''.join(random.choices(string.ascii_lowercase, k=8))}"
+        args.env_name
+        if args.env_name
+        else f"{ENV_PREFIX}{''.join(random.choices(string.ascii_lowercase, k=8))}"
     )
 
     conda = _conda_exe()
     env_dir: Path | None = None
+
+    # Check whether the named env already exists (skip creation if so)
+    env_exists = False
+    if not is_temp_env:
+        try:
+            env_dir = _conda_env_prefix(conda, env_name)
+            env_exists = True
+            print(f"[build_common] Reusing existing env: {env_dir}")
+        except RuntimeError:
+            pass
+
     try:
-        _run(
-            [
-                conda,
-                "create",
-                "-n",
-                env_name,
-                f"python={args.python}",
-                "pip",
-                "-y",
-            ],
-        )
-        env_dir = _conda_env_prefix(conda, env_name)
+        if not env_exists:
+            _run(
+                [
+                    conda,
+                    "create",
+                    "-n",
+                    env_name,
+                    f"python={args.python}",
+                    "pip",
+                    "-y",
+                    "--offline",
+                ],
+            )
+        if env_dir is None:
+            env_dir = _conda_env_prefix(conda, env_name)
         python = _env_python(env_dir)
         # Install qwenpaw with all dependencies
         # Scope CMAKE_ARGS to this specific command to avoid affecting other
@@ -235,6 +274,7 @@ def main() -> int:
                 env_name,
                 "-y",
                 "--force-reinstall",
+                "--offline",
                 "pip",
                 "setuptools",
                 "wheel",
@@ -247,6 +287,7 @@ def main() -> int:
                 "-n",
                 env_name,
                 "-y",
+                "--offline",
                 "conda-pack",
             ],
         )
@@ -266,10 +307,13 @@ def main() -> int:
         _run(pack_cmd)
         print(f"Packed to {out_path}")
     finally:
-        try:
-            _run([conda, "env", "remove", "-n", env_name, "-y"])
-        except Exception as e:
-            print(f"Warning: Failed to remove temp env {env_name}: {e}")
+        if is_temp_env:
+            try:
+                _run([conda, "env", "remove", "-n", env_name, "-y"])
+            except Exception as e:
+                print(f"Warning: Failed to remove temp env {env_name}: {e}")
+        else:
+            print(f"[build_common] Persistent env '{env_name}' retained for next build.")
     return 0
 
 

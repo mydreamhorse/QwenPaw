@@ -16,6 +16,44 @@ $PackExtras = if ($env:PACK_EXTRAS) { $env:PACK_EXTRAS } else { "local" }
 $AppName = if ($env:APP_NAME) { $env:APP_NAME } else { "QwenPaw" }
 $AppDisplayName = if ($env:APP_DISPLAY_NAME) { $env:APP_DISPLAY_NAME } else { "QwenPaw Desktop" }
 $DesktopTitle = if ($env:QWENPAW_DESKTOP_TITLE) { $env:QWENPAW_DESKTOP_TITLE } else { $AppDisplayName }
+# Optional: set PACK_ENV_NAME to reuse a persistent conda env across builds (skips env creation).
+# Example: $env:PACK_ENV_NAME = "qwenpaw_pack_stable"
+$PackEnvName = $env:PACK_ENV_NAME
+
+# --- Build timing ---
+$_BuildStart  = Get-Date
+$_StepName    = ""
+$_StepStart   = Get-Date
+$_Timings     = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+function Step-Start([string]$Name) {
+  if ($script:_StepName) {
+    $mins = [math]::Round(((Get-Date) - $script:_StepStart).TotalMinutes, 2)
+    Write-Host "[timer] $($script:_StepName): $mins min"
+    $script:_Timings.Add([PSCustomObject]@{ Step = $script:_StepName; Minutes = $mins })
+  }
+  $script:_StepName  = $Name
+  $script:_StepStart = Get-Date
+  Write-Host "== $Name =="
+}
+
+function Step-Finish {
+  if ($script:_StepName) {
+    $mins = [math]::Round(((Get-Date) - $script:_StepStart).TotalMinutes, 2)
+    Write-Host "[timer] $($script:_StepName): $mins min"
+    $script:_Timings.Add([PSCustomObject]@{ Step = $script:_StepName; Minutes = $mins })
+    $script:_StepName = ""
+  }
+  $total = [math]::Round(((Get-Date) - $script:_BuildStart).TotalMinutes, 2)
+  Write-Host ""
+  Write-Host "=== Build Timing Summary ==="
+  foreach ($t in $script:_Timings) {
+    Write-Host ("  {0,-48} {1,5} min" -f $t.Step, $t.Minutes)
+  }
+  Write-Host ("  {0,-48} {1,5} min" -f "TOTAL", $total)
+  Write-Host "============================="
+}
+# ---------------------
 
 # Packages affected by conda-unpack bug on Windows (conda-pack Issue #154)
 # conda-unpack corrupts Python string escaping when replacing path prefixes.
@@ -29,7 +67,7 @@ $CondaUnpackAffectedPackages = @(
 
 New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 
-Write-Host "== Building wheel (includes console frontend) =="
+Step-Start "Building wheel (includes console frontend)"
 # Skip wheel_build if dist already has a wheel for current version
 $VersionFile = Join-Path $RepoRoot "src\qwenpaw\__version__.py"
 $CurrentVersion = ""
@@ -73,11 +111,16 @@ if ($RunWheelBuild) {
   if ($LASTEXITCODE -ne 0) { throw "wheel_build.ps1 failed with exit code $LASTEXITCODE" }
 }
 
-Write-Host "== Building conda-packed env =="
+Step-Start "Building conda-packed env"
 if ($env:SKIP_ENV_BUILD -and (Test-Path $Archive)) {
   Write-Host "SKIP_ENV_BUILD is set; reusing $Archive"
 } else {
-  & python $PackDir\build_common.py --output $Archive --format zip --cache-wheels --extras $PackExtras
+  $BuildCommonArgs = @("$PackDir\build_common.py", "--output", $Archive, "--format", "zip", "--cache-wheels", "--extras", $PackExtras)
+  if ($PackEnvName) {
+    $BuildCommonArgs += @("--env-name", $PackEnvName)
+    Write-Host "[build_win] Using persistent conda env: $PackEnvName"
+  }
+  & python @BuildCommonArgs
   if ($LASTEXITCODE -ne 0) {
     throw "build_common.py failed with exit code $LASTEXITCODE"
   }
@@ -86,7 +129,7 @@ if ($env:SKIP_ENV_BUILD -and (Test-Path $Archive)) {
   }
 }
 
-Write-Host "== Unpacking env =="
+Step-Start "Unpacking env + conda-unpack"
 if (Test-Path $Unpacked) { Remove-Item -Recurse -Force $Unpacked }
 Expand-Archive -Path $Archive -DestinationPath $Unpacked -Force
 $unpackedRoot = Get-ChildItem -Path $Unpacked -ErrorAction SilentlyContinue | Measure-Object
@@ -151,7 +194,7 @@ if (Test-Path $CondaUnpack) {
   Write-Host "[build_win] WARN: conda-unpack.exe not found at $CondaUnpack, skipping."
 }
 
-Write-Host "== Pre-compiling Python bytecode for faster startup =="
+Step-Start "Pre-compiling Python bytecode"
 $pythonExe = Join-Path $EnvRoot "python.exe"
 if (Test-Path $pythonExe) {
   Write-Host "[build_win] Compiling all .py files to .pyc..."
@@ -178,6 +221,7 @@ if (Test-Path $pythonExe) {
   Write-Host "[build_win] WARN: python.exe not found at $pythonExe, skipping bytecode compilation" -ForegroundColor Yellow
 }
 
+Step-Start "Writing launchers + assets"
 $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
 # Main launcher .bat (will be hidden by VBS)
@@ -307,7 +351,7 @@ if (Test-Path $IconSrc) {
   Write-Host "[build_win] WARN: icon.ico not found at $IconSrc"
 }
 
-Write-Host "== Building NSIS installer =="
+Step-Start "Building NSIS installer"
 
 # Debug: Print EnvRoot directory contents
 Write-Host "=== EnvRoot=$EnvRoot ==="
@@ -382,4 +426,5 @@ if ($makensisExit -ne 0) {
 if (-not (Test-Path $OutInstaller)) {
   throw "NSIS did not create installer: $OutInstaller"
 }
+Step-Finish
 Write-Host "== Built $OutInstaller =="
