@@ -24,7 +24,7 @@ except ImportError:
     webview = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
-DEFAULT_DESKTOP_TITLE = "QwenPaw Desktop"
+DEFAULT_DESKTOP_TITLE = "AI工作台"
 
 
 def _desktop_window_title() -> str:
@@ -226,6 +226,9 @@ def desktop_cmd(
             if _wait_for_http(host, port):
                 logger.info("HTTP ready, creating webview window...")
                 api = WebViewAPI()
+                # Resolve icon path: icon.ico next to python.exe in the packed env
+                _icon_path = os.path.join(os.path.dirname(sys.executable), "icon.ico")
+                _icon_kw = {"icon": _icon_path} if os.path.isfile(_icon_path) else {}
                 webview.create_window(
                     _desktop_window_title(),
                     url,
@@ -233,6 +236,7 @@ def desktop_cmd(
                     height=800,
                     text_select=True,
                     js_api=api,
+                    **_icon_kw,
                 )
                 logger.info(
                     "Calling webview.start() (blocks until closed)...",

@@ -13,8 +13,8 @@ $NsiPath = Join-Path $PackDir "desktop.nsi"
 
 $ForceWheelBuild = $env:FORCE_WHEEL_BUILD -eq "1"
 $PackExtras = if ($env:PACK_EXTRAS) { $env:PACK_EXTRAS } else { "local" }
-$AppName = if ($env:APP_NAME) { $env:APP_NAME } else { "QwenPaw" }
-$AppDisplayName = if ($env:APP_DISPLAY_NAME) { $env:APP_DISPLAY_NAME } else { "QwenPaw Desktop" }
+$AppName = if ($env:APP_NAME) { $env:APP_NAME } else { "Luobotou" }
+$AppDisplayName = if ($env:APP_DISPLAY_NAME) { $env:APP_DISPLAY_NAME } else { "AI工作台" }
 $DesktopTitle = if ($env:QWENPAW_DESKTOP_TITLE) { $env:QWENPAW_DESKTOP_TITLE } else { $AppDisplayName }
 # Optional: set PACK_ENV_NAME to reuse a persistent conda env across builds (skips env creation).
 # Example: $env:PACK_ENV_NAME = "qwenpaw_pack_stable"
