@@ -41,6 +41,17 @@ RequestExecutionLevel user
 
 Section "${APP_DISPLAY_NAME}" SEC01
   SetOutPath "$INSTDIR"
+
+  ; Kill any running QwenPaw processes before writing files.
+  ; python.exe / python3.dll / msvcp140.dll stay locked while the app runs,
+  ; causing "cannot open file for writing" errors during upgrade installs.
+  DetailPrint "Stopping ${APP_DISPLAY_NAME} if currently running..."
+  FileOpen $R0 "$TEMP\qwenpaw_kill.ps1" w
+  FileWrite $R0 "Get-Process python* -ErrorAction SilentlyContinue | Where-Object { $$_.Path -like '*${APP_NAME}*' } | Stop-Process -Force -ErrorAction SilentlyContinue$\nStart-Sleep -Milliseconds 1500"
+  FileClose $R0
+  ExecWait 'powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "$TEMP\qwenpaw_kill.ps1"'
+  Delete "$TEMP\qwenpaw_kill.ps1"
+
   File /r "${UNPACKED}\*.*"
   WriteRegStr HKCU "Software\${APP_NAME}" "InstallPath" "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
