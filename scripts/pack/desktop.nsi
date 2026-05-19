@@ -56,6 +56,11 @@ Section "${APP_DISPLAY_NAME}" SEC01
   WriteRegStr HKCU "Software\${APP_NAME}" "InstallPath" "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
+  ; Clean up shortcuts from previous QwenPaw Desktop installations
+  Delete "$SMPROGRAMS\QwenPaw Desktop.lnk"
+  Delete "$SMPROGRAMS\QwenPaw Desktop (Debug).lnk"
+  Delete "$DESKTOP\QwenPaw Desktop.lnk"
+
   ; Main shortcut - uses VBS to hide console window
   CreateShortcut "$SMPROGRAMS\${APP_DISPLAY_NAME}.lnk" "$INSTDIR\${APP_DISPLAY_NAME}.vbs" "" "$INSTDIR\icon.ico" 0
   CreateShortcut "$DESKTOP\${APP_DISPLAY_NAME}.lnk" "$INSTDIR\${APP_DISPLAY_NAME}.vbs" "" "$INSTDIR\icon.ico" 0

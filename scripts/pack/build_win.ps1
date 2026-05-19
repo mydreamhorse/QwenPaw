@@ -224,6 +224,14 @@ if (Test-Path $pythonExe) {
 Step-Start "Writing launchers + assets"
 $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
+# Helper: write text file with CRLF line endings (required for .bat / .vbs on Windows).
+# PowerShell here-strings inherit the script file's own line endings (LF in this repo),
+# but cmd.exe cannot parse .bat files with LF-only endings.
+function Write-CrLf([string]$Path, [string]$Text, [System.Text.Encoding]$Enc) {
+  $crlf = $Text -replace "(?<!\r)\n", "`r`n"
+  [System.IO.File]::WriteAllText($Path, $crlf, $Enc)
+}
+
 # Main launcher .bat (will be hidden by VBS)
 $LauncherBat = Join-Path $EnvRoot "$AppDisplayName.bat"
 $LauncherBatContent = @"
@@ -262,7 +270,7 @@ if not exist "%USERPROFILE%\.qwenpaw\config.json" (
 )
 "%~dp0python.exe" -u -m qwenpaw desktop --log-level %QWENPAW_LOG_LEVEL%
 "@
-[System.IO.File]::WriteAllText($LauncherBat, $LauncherBatContent, $Utf8NoBom)
+Write-CrLf $LauncherBat $LauncherBatContent $Utf8NoBom
 
 # Debug launcher .bat (shows console)
 $DebugBat = Join-Path $EnvRoot "$AppDisplayName (Debug).bat"
@@ -322,7 +330,7 @@ echo.
 echo [Exit] $AppDisplayName closed
 pause
 "@
-[System.IO.File]::WriteAllText($DebugBat, $DebugBatContent, $Utf8NoBom)
+Write-CrLf $DebugBat $DebugBatContent $Utf8NoBom
 
 # VBScript launcher (no console window)
 $LauncherVbs = Join-Path $EnvRoot "$AppDisplayName.vbs"
@@ -332,7 +340,7 @@ batPath = Left(WScript.ScriptFullName, Len(WScript.ScriptFullName) - 4) & ".bat"
 WshShell.Run Chr(34) & batPath & Chr(34), 0, False
 Set WshShell = Nothing
 "@
-[System.IO.File]::WriteAllText($LauncherVbs, $LauncherVbsContent, $Utf8NoBom)
+Write-CrLf $LauncherVbs $LauncherVbsContent $Utf8NoBom
 
 # Create qwenpaw.cmd wrapper in env root so "qwenpaw" resolves to this
 # instead of Scripts\qwenpaw.exe whose embedded Python path may be stale
