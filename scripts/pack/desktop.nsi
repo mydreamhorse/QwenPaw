@@ -67,6 +67,9 @@ Section "${APP_DISPLAY_NAME}" SEC01
   
   ; Debug shortcut - shows console window for troubleshooting
   CreateShortcut "$SMPROGRAMS\${APP_DISPLAY_NAME} (Debug).lnk" "$INSTDIR\${APP_DISPLAY_NAME} (Debug).bat" "" "$INSTDIR\icon.ico" 0
+
+  ; Flush Windows icon cache so new icon shows immediately
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0x1000, p 0, p 0)'
 SectionEnd
 
 Section "Uninstall"

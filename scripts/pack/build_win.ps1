@@ -248,8 +248,8 @@ set "PATH=%~dp0;%~dp0Scripts;%PATH%"
 REM Log level: env var QWENPAW_LOG_LEVEL or default to "info"
 if not defined QWENPAW_LOG_LEVEL set "QWENPAW_LOG_LEVEL=info"
 
-REM Desktop window title
-if not defined QWENPAW_DESKTOP_TITLE set "QWENPAW_DESKTOP_TITLE=$DesktopTitle"
+REM Desktop window title: Python uses DEFAULT_DESKTOP_TITLE when env var is not set.
+REM To customize, set QWENPAW_DESKTOP_TITLE as a system/user environment variable.
 
 REM Set SSL certificate paths for packaged environment
 REM Use temp file to avoid for /f blocking issue in bat scripts
@@ -288,8 +288,8 @@ set "PATH=%~dp0;%~dp0Scripts;%PATH%"
 REM Debug mode: use debug log level by default (can override with QWENPAW_LOG_LEVEL)
 if not defined QWENPAW_LOG_LEVEL set "QWENPAW_LOG_LEVEL=debug"
 
-REM Desktop window title
-if not defined QWENPAW_DESKTOP_TITLE set "QWENPAW_DESKTOP_TITLE=$DesktopTitle"
+REM Desktop window title: Python uses DEFAULT_DESKTOP_TITLE when env var is not set.
+REM To customize, set QWENPAW_DESKTOP_TITLE as a system/user environment variable.
 
 REM Set SSL certificate paths for packaged environment
 REM Use temp file to avoid for /f blocking issue in bat scripts
@@ -306,7 +306,7 @@ if defined CERT_FILE (
 )
 
 echo ====================================
-echo $AppDisplayName - Debug Mode
+echo $AppName - Debug Mode
 echo ====================================
 echo Working Directory: %cd%
 echo Python: "%~dp0python.exe"
@@ -322,12 +322,12 @@ if not exist "%USERPROFILE%\.qwenpaw\config.json" (
   echo [Init] Creating config...
   "%~dp0python.exe" -u -m qwenpaw init --defaults --accept-security
 )
-echo [Launch] Starting $AppDisplayName with log-level=%QWENPAW_LOG_LEVEL%...
+echo [Launch] Starting $AppName with log-level=%QWENPAW_LOG_LEVEL%...
 echo Press Ctrl+C to stop
 echo.
 "%~dp0python.exe" -u -m qwenpaw desktop --log-level %QWENPAW_LOG_LEVEL%
 echo.
-echo [Exit] $AppDisplayName closed
+echo [Exit] $AppName closed
 pause
 "@
 Write-CrLf $DebugBat $DebugBatContent $Utf8NoBom
@@ -357,6 +357,81 @@ if (Test-Path $IconSrc) {
   Write-Host "[build_win] Copied icon.ico to env root"
 } else {
   Write-Host "[build_win] WARN: icon.ico not found at $IconSrc"
+}
+
+Step-Start "Pre-packaging validation"
+$ValidationErrors = @()
+
+# 1. Verify BAT files exist and have CRLF line endings
+foreach ($batName in @("$AppDisplayName.bat", "$AppDisplayName (Debug).bat")) {
+  $batPath = Join-Path $EnvRoot $batName
+  if (-not (Test-Path $batPath)) {
+    $ValidationErrors += "MISSING: $batName not found"
+    continue
+  }
+  $batBytes = [System.IO.File]::ReadAllBytes($batPath)
+  $hasLfOnly = $false
+  for ($i = 0; $i -lt $batBytes.Length; $i++) {
+    if ($batBytes[$i] -eq 0x0A -and ($i -eq 0 -or $batBytes[$i-1] -ne 0x0D)) {
+      $hasLfOnly = $true; break
+    }
+  }
+  if ($hasLfOnly) {
+    $ValidationErrors += "ENCODING: $batName has LF-only line endings (cmd.exe requires CRLF)"
+  } else {
+    Write-Host "[validate] ✓ $batName has CRLF line endings"
+  }
+}
+
+# 2. Verify BAT files contain only ASCII characters (cmd.exe codepage issues with non-ASCII)
+foreach ($batName in @("$AppDisplayName.bat", "$AppDisplayName (Debug).bat")) {
+  $batPath = Join-Path $EnvRoot $batName
+  if (Test-Path $batPath) {
+    $batBytes = [System.IO.File]::ReadAllBytes($batPath)
+    $nonAscii = @($batBytes | Where-Object { $_ -gt 127 })
+    if ($nonAscii.Count -gt 0) {
+      $ValidationErrors += "ENCODING: $batName contains $($nonAscii.Count) non-ASCII bytes (cmd.exe cannot reliably handle non-ASCII in BAT files)"
+    } else {
+      Write-Host "[validate] ✓ $batName is ASCII-only (safe for all codepages)"
+    }
+  }
+}
+
+# 3. Verify VBS launcher exists
+$vbsPath = Join-Path $EnvRoot "$AppDisplayName.vbs"
+if (-not (Test-Path $vbsPath)) {
+  $ValidationErrors += "MISSING: $AppDisplayName.vbs not found"
+} else {
+  Write-Host "[validate] ✓ $AppDisplayName.vbs exists"
+}
+
+# 4. Verify icon.ico exists and matches source
+$iconDest = Join-Path $EnvRoot "icon.ico"
+$iconSrcPath = Join-Path $PackDir "assets\icon.ico"
+if (-not (Test-Path $iconDest)) {
+  $ValidationErrors += "MISSING: icon.ico not found in env root"
+} elseif (Test-Path $iconSrcPath) {
+  $srcHash = (Get-FileHash $iconSrcPath -Algorithm SHA256).Hash
+  $dstHash = (Get-FileHash $iconDest -Algorithm SHA256).Hash
+  if ($srcHash -ne $dstHash) {
+    $ValidationErrors += "ICON: icon.ico in env ($dstHash) does not match source ($srcHash)"
+  } else {
+    Write-Host "[validate] ✓ icon.ico matches source (SHA256: $($srcHash.Substring(0,12))...)"
+  }
+} else {
+  Write-Host "[validate] WARN: source icon.ico not found, cannot verify hash"
+}
+
+# 5. Report validation results
+if ($ValidationErrors.Count -gt 0) {
+  Write-Host ""
+  Write-Host "=== VALIDATION FAILED ==="  -ForegroundColor Red
+  foreach ($err in $ValidationErrors) {
+    Write-Host "  ✗ $err" -ForegroundColor Red
+  }
+  throw "Pre-packaging validation failed with $($ValidationErrors.Count) error(s). Fix the issues above before building the installer."
+} else {
+  Write-Host "[validate] ✓ All pre-packaging checks passed"
 }
 
 Step-Start "Building NSIS installer"
